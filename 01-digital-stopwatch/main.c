@@ -1,139 +1,98 @@
-/*
-ÊµÑéËµÃ÷£º
-	
-ÊµÑé½ÓÏß£º
-	1£¬¶¯Ì¬ÊıÂë¹ÜÄ£¿é-->µ¥Æ¬»ú¹Ü½Å
-	²Î¿¼¶¯Ì¬ÊıÂë¹ÜÏÔÊ¾ÊµÑé½ÓÏß£¨¿ª·¢¹¥ÂÔÄÚÔÚ¶ÔÓ¦µÄÊµÑéÕÂ½ÚÄÚÊµÑéÏÖÏóÓĞ½ÓÏßËµÃ÷£©
-	
-ÊµÑéÏÖÏó£º
-	ÊıÂë¹ÜÉÏÏÔÊ¾Ãë±í
-*/
+/* æ•°å­—ç§’è¡¨ï¼šå®šæ—¶å™¨ 0 æ¯ 10ms ä¸­æ–­ï¼Œæ•°ç ç®¡æ˜¾ç¤º mm-ss-xx */
+#include <reg52.h>
 
-#include "reg52.h"			 //´ËÎÄ¼şÖĞ¶¨ÒåÁËµ¥Æ¬»úµÄÒ»Ğ©ÌØÊâ¹¦ÄÜ¼Ä´æÆ÷
-
-typedef unsigned int u16;	  //¶ÔÊı¾İÀàĞÍ½øĞĞÉùÃ÷¶¨Òå
+typedef unsigned int u16;
 typedef unsigned char u8;
 
-sbit LSA=P2^2;
-sbit LSB=P2^3;
-sbit LSC=P2^4;
+sbit LSA = P2^2;
+sbit LSB = P2^3;
+sbit LSC = P2^4;
 
-u8 code smgduan[17]={0x3f,0x06,0x5b,0x4f,0x66,0x6d,0x7d,0x07,
-					0x7f,0x6f,0x77,0x7c,0x39,0x5e,0x79,0x71};//ÏÔÊ¾0~FµÄÖµ
+u8 code SEG[] = {
+	0x3f, 0x06, 0x5b, 0x4f, 0x66, 0x6d, 0x7d, 0x07,
+	0x7f, 0x6f, 0x77, 0x7c, 0x39, 0x5e, 0x79, 0x71
+};
 
-u8 ssec,sec,min; //ºÁÃë£¬Ãë£¬·Ö
-u8 DisplayData[8];
-/*******************************************************************************
-* º¯ Êı Ãû         : delay
-* º¯Êı¹¦ÄÜ		   : ÑÓÊ±º¯Êı£¬i=1Ê±£¬´óÔ¼ÑÓÊ±10us
-*******************************************************************************/
+u8 centi;              /* 0.01 ç§’ï¼Œæ»¡ 100 = 1 ç§’ */
+u8 sec;
+u8 min;
+u8 digits[8];          /* 8 ä½æ•°ç ç®¡æ®µç ç¼“å­˜ */
+
 void delay(u16 i)
 {
-	while(i--);	
+	while (i--)
+		;
 }
 
-/*******************************************************************************
-* º¯ Êı Ãû         : Timer0Init
-* º¯Êı¹¦ÄÜ		   : ¶¨Ê±Æ÷0³õÊ¼»¯
-* Êä    Èë         : ÎŞ
-* Êä    ³ö         : ÎŞ
-*******************************************************************************/
-void Timer0Init()
+void timer0_init(void)
 {
-	TMOD|=0X01;//Ñ¡ÔñÎª¶¨Ê±Æ÷0Ä£Ê½£¬¹¤×÷·½Ê½1£¬½öÓÃTR0´ò¿ªÆô¶¯¡£
-
-	TH0=0Xd8;	//¸ø¶¨Ê±Æ÷¸³³õÖµ£¬¶¨Ê±10ms
-	TL0=0Xf0;	
-	ET0=1;//´ò¿ª¶¨Ê±Æ÷0ÖĞ¶ÏÔÊĞí
-	EA=1;//´ò¿ª×ÜÖĞ¶Ï
-	TR0=1;//´ò¿ª¶¨Ê±Æ÷			
+	TMOD |= 0x01;      /* å®šæ—¶å™¨ 0ï¼Œæ¨¡å¼ 1 */
+	TH0 = 0xD8;        /* çº¦ 10msï¼ˆ12MHzï¼‰ */
+	TL0 = 0xF0;
+	ET0 = 1;
+	EA = 1;
+	TR0 = 1;
 }
 
+void update_digits(void)
+{
+	digits[0] = SEG[min / 10];
+	digits[1] = SEG[min % 10];
+	digits[2] = 0x40;          /* '-' */
+	digits[3] = SEG[sec / 10];
+	digits[4] = SEG[sec % 10];
+	digits[5] = 0x40;
+	digits[6] = SEG[centi / 10];
+	digits[7] = SEG[centi % 10];
+}
 
-/*******************************************************************************
-* º¯ Êı Ãû         : DigDisplay
-* º¯Êı¹¦ÄÜ		   : ÊıÂë¹Ü¶¯Ì¬É¨Ãèº¯Êı£¬Ñ­»·É¨Ãè8¸öÊıÂë¹ÜÏÔÊ¾
-*******************************************************************************/
-void DigDisplay()
+void scan_display(void)
 {
 	u8 i;
-	for(i=0;i<8;i++)
+	for (i = 0; i < 8; i++)
 	{
-		switch(i)	 //Î»Ñ¡£¬Ñ¡ÔñµãÁÁµÄÊıÂë¹Ü£¬
+		switch (i)
 		{
-			case(0):
-				LSA=1;LSB=1;LSC=1; break;//ÏÔÊ¾µÚ7Î»
-			case(1):
-				LSA=0;LSB=1;LSC=1; break;//ÏÔÊ¾µÚ6Î»
-			case(2):
-				LSA=1;LSB=0;LSC=1; break;//ÏÔÊ¾µÚ5Î»
-			case(3):
-				LSA=0;LSB=0;LSC=1; break;//ÏÔÊ¾µÚ4Î»
-			case(4):
-				LSA=1;LSB=1;LSC=0; break;//ÏÔÊ¾µÚ3Î» 
-			case(5):
-				LSA=0;LSB=1;LSC=0; break;//ÏÔÊ¾µÚ2Î» 
-			case(6):
-				LSA=1;LSB=0;LSC=0; break;//ÏÔÊ¾µÚ1Î» 
-			case(7):
-				LSA=0;LSB=0;LSC=0; break;//ÏÔÊ¾µÚ0Î»	
+		case 0: LSA = 1; LSB = 1; LSC = 1; break;
+		case 1: LSA = 0; LSB = 1; LSC = 1; break;
+		case 2: LSA = 1; LSB = 0; LSC = 1; break;
+		case 3: LSA = 0; LSB = 0; LSC = 1; break;
+		case 4: LSA = 1; LSB = 1; LSC = 0; break;
+		case 5: LSA = 0; LSB = 1; LSC = 0; break;
+		case 6: LSA = 1; LSB = 0; LSC = 0; break;
+		case 7: LSA = 0; LSB = 0; LSC = 0; break;
 		}
-		P0=DisplayData[i];//·¢ËÍ¶ÎÂë
-		delay(100); //¼ä¸ôÒ»¶ÎÊ±¼äÉ¨Ãè	
-		P0=0x00;//ÏûÒş
+		P0 = digits[i];
+		delay(100);
+		P0 = 0x00;
 	}
 }
 
-void datapros()
+void main(void)
 {
-	DisplayData[0]=smgduan[min/10];
-	DisplayData[1]=smgduan[min%10];
-	DisplayData[2]=0x40;	
-	DisplayData[3]=smgduan[sec/10];
-	DisplayData[4]=smgduan[sec%10];
-	DisplayData[5]=0x40;
-	DisplayData[6]=smgduan[ssec/10];
-	DisplayData[7]=smgduan[ssec%10];
-}
-/*******************************************************************************
-* º¯ Êı Ãû       : main
-* º¯Êı¹¦ÄÜ		 : Ö÷º¯Êı
-* Êä    Èë       : ÎŞ
-* Êä    ³ö    	 : ÎŞ
-*******************************************************************************/
-void main()
-{	
-	Timer0Init();  //¶¨Ê±Æ÷0³õÊ¼»¯
-	while(1)
+	timer0_init();
+	while (1)
 	{
-		datapros();
-		DigDisplay();	
-	}		
+		update_digits();
+		scan_display();
+	}
 }
 
-/*******************************************************************************
-* º¯ Êı Ãû         : void Timer0() interrupt 1
-* º¯Êı¹¦ÄÜ		   : ¶¨Ê±Æ÷0ÖĞ¶Ïº¯Êı
-* Êä    Èë         : ÎŞ
-* Êä    ³ö         : ÎŞ
-*******************************************************************************/
-void Timer0() interrupt 1
+void timer0_isr(void) interrupt 1
 {
-	TH0=0Xd8;	//¸ø¶¨Ê±Æ÷¸³³õÖµ£¬¶¨Ê±10ms
-	TL0=0Xf0;
-	ssec++;
-	if(ssec>=100)  //1s
+	TH0 = 0xD8;
+	TL0 = 0xF0;
+	centi++;
+	if (centi >= 100)
 	{
-		ssec=0;
+		centi = 0;
 		sec++;
-		if(sec>=60)
+		if (sec >= 60)
 		{
-			sec=0;
+			sec = 0;
 			min++;
-			if(min>=60)
-			{
-				min=0;
-			}
-		}	
-	}	
+			if (min >= 60)
+				min = 0;
+		}
+	}
 }
