@@ -1,0 +1,37 @@
+# Keil / 51 build junk
+*.uvgu?
+*.uvopt
+*.uvoptx
+*.plg
+*.lst
+*.obj
+*.o
+*.hex
+*.bin
+*.map
+*.m51
+*.lnp
+*.bak
+*.Exe
+*.exe
+Debug/
+Release/
+Listings/
+Objects/
+OUTPUT/
+.vs/
+*.suo
+*.user
+*.db
+*.opendb
+
+# docs / binaries not needed in source repo
+*.doc
+*.docx
+*.pdf
+*.jpg
+*.png
+*.rar
+*.zip
+Thumbs.db
+.DS_Store
